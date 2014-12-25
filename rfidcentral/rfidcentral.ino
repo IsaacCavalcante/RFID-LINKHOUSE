@@ -23,10 +23,9 @@ void setup(){
 }
 
 void loop(){
-  char caracterTemporario;
   String recebido="";
   while(serial.available()){
-    recebido += caracterTemporario;
+    recebido += serial.read();;
   }
 
   if(recebido.endsWith("&")){

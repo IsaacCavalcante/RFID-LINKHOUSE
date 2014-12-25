@@ -1,18 +1,21 @@
-#include <SD.h>
 #include <SPI.h>
 #include <MFRC522.h>
 #include <Keypad.h>
+
 
 /*----------------------Configurção RFID------------------------*/
 #define SS_PIN 10
 #define RST_PIN 9
 /*----------------------Configurção RFID------------------------*/
-
-/*----------------------Configurção do teclado------------------------*/
+/*----------------------Configurção RFID------------------------*/
+//SoftwareSerial serial (12,13);
+/*----------------------Configurção RFID------------------------*/
+/*----------------------Configurção do teclado--------------------*/
 const byte ROWS = 4; //four rows
 const byte COLS = 4; //four columns
 String opcaoEscolhida = "";
 String idRcebidoCadastro = "";
+boolean cartaoPresente = false;
 //define the cymbols on the buttons of the keypads
 char hexaKeys[ROWS][COLS] = {
   {'*','0','#'},
@@ -20,15 +23,14 @@ char hexaKeys[ROWS][COLS] = {
   {'6','5','4'},
   {'9','8','7'}
 };
-byte rowPins[ROWS] = {11, 8, 2, 3}; //connect to the row pinouts of the keypad
-byte colPins[COLS] = {5, 6, 7}; //connect to the column pinouts of the keypad
+byte rowPins[ROWS] = {4, 8, 2, 3}; 
+byte colPins[COLS] = {5, 6, 7}; 
 /*----------------------Configurção do teclado------------------------*/
 
 /*----------------------Instancias de RFID e arquivo para SD card e objeto para teclado------------------------*/
 Keypad customKeypad = Keypad(makeKeymap(hexaKeys), rowPins, colPins, ROWS, COLS); 
 MFRC522 mfrc522(SS_PIN, RST_PIN);
 MFRC522::MIFARE_Key key;
-File arquivo;
 /*----------------------Instancias de RFID e arquivo para SD card e objeto para teclado------------------------*/
 
 void setup(){
@@ -36,32 +38,25 @@ void setup(){
   Serial.begin(9600);
   SPI.begin();                // Inicia protocolo SPI
   mfrc522.PCD_Init();        // Inicia a biblioteca para a leitura dos cartões
-  while (!Serial){
-    ; // Esperandoporta seria. Necessáro apenas para o Leonado
-  }
-
-
-   pinMode(10, OUTPUT);
-   
-  if (!SD.begin(4)) {
-    return;
-  }
-  arquivo = SD.open("cadastro.txt", FILE_WRITE);
-  arquivo.close();
 }
 
 void loop(){
   escolherOpcao();
+  cartaoPresente = false;
 }
 
 void escolherOpcao(){
   char opcaoMomentanea = customKeypad.getKey();
   if(opcaoMomentanea != NO_KEY){
     if(isdigit(opcaoMomentanea)){
-      Serial.print(opcaoMomentanea);
+      //Serial.print(opcaoMomentanea);
     }
     if(opcaoMomentanea == '*'){
-      escolherAcao();
+      if(opcaoEscolhida.equals("10")||opcaoEscolhida.equals("20")||opcaoEscolhida.equals("30")){   
+        escolherAcao();
+      }else{
+        //Serial.println("Opcao invalida");
+      }
       opcaoEscolhida = "";
     }else if(opcaoMomentanea == '#'){
       opcaoEscolhida = "";
@@ -72,146 +67,72 @@ void escolherOpcao(){
 }
 
 void escolherAcao(){
-  Serial.println();
+  String recebido = "";
+  
   if(opcaoEscolhida.equals("10")){
-    Serial.println("Passe o cartao para cadastro");
-    if(existeUsuario(true,false)){
-      Serial.println("Usuario ja cadastrado");
-    }else{
-      cadastro();
-    }
+    //Serial.println("Passe o cartao para cadastro");
+    recebido+="*";
   }
-  
+    
   if(opcaoEscolhida.equals("20")){
-    Serial.println("Passe o cartao para ter acesso");
-    if(existeUsuario(false,false)){
-      Serial.println("Portao aberto");
-    }else{
-      Serial.println("Cadastro nao encontrado");
-    }
+    //Serial.println("Passe o cartao para ter acesso");
+    recebido+="#";
   }
-  
+    
   if(opcaoEscolhida.equals("30")){
-    Serial.println("Passe o cartão que será deletado");
-    if(existeUsuario(false,true)){
-      Serial.println("Usuario deletado");
-    }else{
-      Serial.println("Usuario nao encontrado");
-    }
+     //Serial.println("Passe o cartao que sera deletado");
+      recebido+="$";
   }
-}
 
-void cadastro(){
-  char opcaoMomentanea = ' ';
-  String confirmacao = "";
-  
-  arquivo = SD.open("cadastro.txt", FILE_WRITE);
-  
-  if (arquivo){
-    Serial.print("ID do cartao ");
-    Serial.println(idRcebidoCadastro);
-    Serial.println("Deseja realmente guardar esse ID?");
-    Serial.println("Digite o codigo de cadastro e aperte 'ent' para confirmacao ou 'canc' para cancelar");
-    
-    while(opcaoMomentanea != '*'){
-      opcaoMomentanea = customKeypad.getKey();
-      if(opcaoMomentanea != NO_KEY){
-        if(isdigit(opcaoMomentanea)){
-          Serial.print(opcaoMomentanea);
-        }
-        if(opcaoMomentanea=='#'){
-          confirmacao = "";
-        }else if(opcaoMomentanea != '*'){
-          confirmacao+=opcaoMomentanea;
-        }
-      }
-    }
-    
-    Serial.println();
-    if(confirmacao.equals("10")){
-      arquivo.print(idRcebidoCadastro); //Decidi gravar sem println, pois quando é necessário ler os dados gravados na hora do acesso acontecia incompatibilidades no tamanho das strings que comportavam o valor do cartão lido e da linha no arquivo que guardava os usuários (tamanhos diferentes)
-      arquivo.print(" ");//sendo assim esse último espaço é necessário para identificar um registro de outro na hora do acesso
-      idRcebidoCadastro = "";
-      Serial.println("Gravado com sucesso.");
-    }else{
-      Serial.println("Gravacao cancelada.");
-    }
-    arquivo.close();
-  }else{
-  }
-}
-
-boolean existeUsuario(boolean confirmacaoCadastro, boolean confirmarDelecao){
-  String idRecebido = "";
-  String idLido = "";
-  char caracterTemporario;
-  short contadorEspacos=0;
-  unsigned long posicao = 0;
-  unsigned long posicaoInicial = 0;
   esperandoRFID();
-  idRecebido = lendoRFID();
-  if(confirmacaoCadastro){
-    idRcebidoCadastro = idRecebido;
-  }
-  arquivo = SD.open("cadastro.txt");
-  if (arquivo){
-    while (arquivo.available()){
-      caracterTemporario = arquivo.read();
-      if(caracterTemporario==' '){
-        contadorEspacos++;
-      }
-      if(contadorEspacos==4){                                 
-        if(idLido.substring(0,idLido.length()).equals(idRecebido.substring(0,idLido.length()))){
-          if(confirmarDelecao){
-            arquivo.close();
-            arquivo = SD.open("cadastro.txt",FILE_WRITE);
-            for(int indice=posicaoInicial; indice<=posicao; indice++){
-                arquivo.seek(indice);
-                arquivo.print(0x00,HEX);
-                Serial.print("ASdasdad");
-                Serial.write(0x00);
-                Serial.print("ASdasdad");
-            }
-          }
-          arquivo.close();
-          return true;
-        }
-        idLido = "";
-        contadorEspacos=0;
-        posicaoInicial = posicao+1;
-      }else{
-        idLido+=caracterTemporario;
-        posicao++;
-      }
-    }
+  recebido += lendoRFID();
+  //Serial.print("RFID lido: ");
+ // Serial.println(recebido);
+
+  //Serial.println();
+  if(recebido.length()>1){
+    recebido+="&";
+   // Serial.print("RFID enviado: ");
+    Serial.print(recebido);
   }else{
+    //Serial.println("Nenhum cartao lido");
   }
-  arquivo.close();
-  return false;
-  
-}
-
-void delecao(){
-
+  recebido = "";
 }
 
 void esperandoRFID(){
+  unsigned long int limiteTempo;
   for (byte i = 0; i < 6; i++){
     key.keyByte[i] = 0xFF;
   }
-  while( ! mfrc522.PICC_IsNewCardPresent());
-  while( ! mfrc522.PICC_ReadCardSerial());
+  //Serial.print("esperando...");
+  limiteTempo = millis();
+  cartaoPresente = true;
+  while( ! mfrc522.PICC_IsNewCardPresent()){
+    if((millis()-limiteTempo)>10000){
+      cartaoPresente = false;
+      break;
+    }
+  }
+  limiteTempo = millis();
+  while( ! mfrc522.PICC_ReadCardSerial()){
+    if(!cartaoPresente){
+      break;
+    }
+  }
 }
 
 String lendoRFID(){
   String idCartao = "";
   int contador=0;
-  for (byte i = 0; i < mfrc522.uid.size; i++){
-    idCartao += mfrc522.uid.uidByte[i];
-    if(i<mfrc522.uid.size-1){
-      idCartao += " ";
+  if(cartaoPresente){
+    for (byte i = 0; i < mfrc522.uid.size; i++){
+      idCartao += mfrc522.uid.uidByte[i];
+      if(i<mfrc522.uid.size-1){
+        idCartao += " ";
+      }
     }
   }
-  Serial.println();
+  //Serial.println();
   return idCartao;
 }
