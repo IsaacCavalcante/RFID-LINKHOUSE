@@ -12,28 +12,37 @@ void setup(){
   
   Serial.begin(9600);
   serial.begin(9600);
-
+   
+  Serial.print("Inicializando SD card...");
   pinMode(10, OUTPUT);
    
   if (!SD.begin(4)) {
+    Serial.println("Inicializacao falhou!");
     return;
   }
+  Serial.println("Inicializacao completa.");
+
   arquivo = SD.open("cadastro.txt", FILE_WRITE);
   arquivo.close();
 }
 
 void loop(){
   String recebido="";
-  while(serial.available()){
-    recebido += serial.read();;
-  }
+  char caracterTemporario;
+  if(serial.available()){
+    while(serial.available()){
+      recebido += (char)(serial.read());
+    }
 
-  if(recebido.endsWith("&")){
-    escolherOpcao(recebido);
-  }else{
-    Serial.println("Envio errado");
+    if(recebido.endsWith("&")){
+      Serial.println(recebido);
+      escolherOpcao(recebido);
+    }else{
+      Serial.println(recebido);
+      Serial.println("Envio errado");
+    }
+    recebido = "";
   }
-  recebido = "";
 }
 
 void escolherOpcao(String recebidoEscolherOpcao){
@@ -65,14 +74,12 @@ void cadastro(String recebidoCadastro){
   if (arquivo){
     Serial.print("ID do cartao ");
     Serial.println(recebidoCadastro.substring(1,recebidoCadastro.length()-1));
-    Serial.println("Deseja realmente guardar esse ID?");
-    Serial.println("Digite o codigo de cadastro e aperte 'ent' para confirmacao ou 'canc' para cancelar");
-    
-    Serial.println();
-    arquivo.print(idRcebidoCadastro); //Decidi gravar sem println, pois quando é necessário ler os dados gravados na hora do acesso acontecia incompatibilidades no tamanho das strings que comportavam o valor do cartão lido e da linha no arquivo que guardava os usuários (tamanhos diferentes)
+
+    arquivo.print(recebidoCadastro.substring(1,recebidoCadastro.length()-1)); //Decidi gravar sem println, pois quando é necessário ler os dados gravados na hora do acesso acontecia incompatibilidades no tamanho das strings que comportavam o valor do cartão lido e da linha no arquivo que guardava os usuários (tamanhos diferentes)
     arquivo.print(" ");//sendo assim esse último espaço é necessário para identificar um registro de outro na hora do acesso
     idRcebidoCadastro = "";
   }
+  arquivo.close();
 }
 
 boolean existeUsuario(String recebidoExisteUsuario, boolean confirmacaoCadastro, boolean confirmarDelecao){
@@ -93,7 +100,7 @@ boolean existeUsuario(String recebidoExisteUsuario, boolean confirmacaoCadastro,
         contadorEspacos++;
       }
       if(contadorEspacos==4){                                 
-        if(idLido.substring(0,idLido.length()).equals(recebidoExisteUsuario.substring(0,idLido.length()))){
+        if(idLido.substring(0,idLido.length()).equals(recebidoExisteUsuario.substring(1,recebidoExisteUsuario.length()-1))){
           if(confirmarDelecao){
             arquivo.close();
             arquivo = SD.open("cadastro.txt",FILE_WRITE);
